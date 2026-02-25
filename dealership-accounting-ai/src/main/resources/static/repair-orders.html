@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Repair Orders - Dealership Accounting AI</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="index.html">🚗 Dealership Accounting AI</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item"><a class="nav-link" href="index.html">Dashboard</a></li>
+                    <li class="nav-item"><a class="nav-link active" href="repair-orders.html">Repair Orders</a></li>
+                    <li class="nav-item"><a class="nav-link" href="receipts.html">Receipts</a></li>
+                    <li class="nav-item"><a class="nav-link" href="batching.html">Batching</a></li>
+                    <li class="nav-item"><a class="nav-link" href="bank.html">Bank Feed</a></li>
+                    <li class="nav-item"><a class="nav-link" href="reconcile.html">Reconcile</a></li>
+                    <li class="nav-item"><a class="nav-link" href="exceptions.html">Exceptions</a></li>
+                    <li class="nav-item"><a class="nav-link" href="analytics.html">📈 Analytics</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container mt-4">
+        <h1>🔧 Repair Orders</h1>
+
+        <!-- Create RO Form -->
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5>Create New Repair Order</h5>
+            </div>
+            <div class="card-body">
+                <form id="createRoForm">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Customer Name *</label>
+                            <input type="text" class="form-control" id="customerName" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Customer Phone * (Format: 555-123-4567)</label>
+                            <input type="text" class="form-control" id="customerPhone" placeholder="555-123-4567" pattern="\d{3}-\d{3}-\d{4}" required>
+                            <small class="text-muted">Use dashes: 555-123-4567</small>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Vehicle Year</label>
+                            <input type="text" class="form-control" id="vehicleYear" value="2020">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Vehicle Make *</label>
+                            <input type="text" class="form-control" id="vehicleMake" required>
+                        </div>
+                        <div class="col-md-5 mb-3">
+                            <label class="form-label">Vehicle Model *</label>
+                            <input type="text" class="form-control" id="vehicleModel" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Service Description *</label>
+                        <input type="text" class="form-control" id="serviceDesc" placeholder="e.g., Oil change" required>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Service Amount ($) *</label>
+                            <input type="number" class="form-control" id="serviceAmount" step="0.01" value="50.00" required>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Create Repair Order</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- List ROs -->
+        <div class="card">
+            <div class="card-header bg-secondary text-white">
+                <h5>All Repair Orders</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>RO Number</th>
+                            <th>Customer</th>
+                            <th>Vehicle</th>
+                            <th>Total</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="roTableBody">
+                        <tr><td colspan="6" class="text-center">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8080/api';
+
+        window.onload = function() {
+            loadRepairOrders();
+        };
+
+        // Create RO
+        document.getElementById('createRoForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const ro = {
+                customer: {
+                    name: document.getElementById('customerName').value,
+                    phone: document.getElementById('customerPhone').value
+                },
+                vehicle: {
+                    year: document.getElementById('vehicleYear').value,
+                    make: document.getElementById('vehicleMake').value,
+                    model: document.getElementById('vehicleModel').value
+                },
+                lineItems: [
+                    {
+                        type: "LABOR",
+                        description: document.getElementById('serviceDesc').value,
+                        quantity: 1,
+                        rate: parseFloat(document.getElementById('serviceAmount').value)
+                    }
+                ],
+                status: "OPEN"
+            };
+
+            try {
+                const response = await fetch(`${API_BASE}/repair-orders`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(ro)
+                });
+
+                if (response.ok) {
+                    alert('✅ Repair Order created successfully!');
+                    loadRepairOrders();
+                    e.target.reset();
+                } else {
+                    alert('❌ Error creating RO');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('❌ Error: ' + error.message);
+            }
+        });
+
+        // Load ROs
+        async function loadRepairOrders() {
+            try {
+                const response = await fetch(`${API_BASE}/repair-orders`);
+                const ros = await response.json();
+
+                const tbody = document.getElementById('roTableBody');
+                tbody.innerHTML = '';
+
+                if (ros.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" class="text-center">No repair orders yet</td></tr>';
+                    return;
+                }
+
+                ros.forEach(ro => {
+                    const row = `
+                        <tr>
+                            <td><strong>${ro.roNumber}</strong></td>
+                            <td>${ro.customer.name}</td>
+                            <td>${ro.vehicle.year} ${ro.vehicle.make} ${ro.vehicle.model}</td>
+                            <td>$${ro.total.toFixed(2)}</td>
+                            <td><span class="badge bg-${ro.status === 'OPEN' ? 'warning' : 'success'}">${ro.status}</span></td>
+                            <td>${ro.status === 'OPEN' ? 
+                                `<button class="btn btn-sm btn-primary" onclick="closeRO('${ro.id}')">Close RO</button>` : 
+                                `<span class="text-success">✓ Closed</span>`
+                            }</td>
+                        </tr>
+                    `;
+                    tbody.innerHTML += row;
+                });
+            } catch (error) {
+                console.error('Error loading ROs:', error);
+            }
+        }
+
+        // Close RO
+        async function closeRO(roId) {
+            if (!confirm('Close this repair order?')) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/repair-orders/${roId}/close`, {
+                    method: 'PUT'
+                });
+
+                if (response.ok) {
+                    alert('✅ RO closed successfully!');
+                    loadRepairOrders();
+                } else {
+                    alert('❌ Error closing RO');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+    </script>
+</body>
+</html>
+

@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Reconciliation - Dealership Accounting AI</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="index.html">🚗 Dealership Accounting AI</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item"><a class="nav-link" href="index.html">Dashboard</a></li>
+                    <li class="nav-item"><a class="nav-link" href="repair-orders.html">Repair Orders</a></li>
+                    <li class="nav-item"><a class="nav-link" href="receipts.html">Receipts</a></li>
+                    <li class="nav-item"><a class="nav-link" href="batching.html">Batching</a></li>
+                    <li class="nav-item"><a class="nav-link" href="bank.html">Bank Feed</a></li>
+                    <li class="nav-item"><a class="nav-link active" href="reconcile.html">Reconcile</a></li>
+                    <li class="nav-item"><a class="nav-link" href="exceptions.html">Exceptions</a></li>
+                    <li class="nav-item"><a class="nav-link" href="analytics.html">📈 Analytics</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container mt-4">
+        <h1>🤖 AI Reconciliation</h1>
+
+        <!-- AI Reconciliation Button -->
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5>🤖 AI-Powered Reconciliation</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">Let AI automatically match bank transactions to deposit batches and detect exceptions</p>
+                <button type="button" class="btn btn-primary btn-lg" id="runAIBtn">
+                    <i class="bi bi-robot"></i> Run AI Reconciliation
+                </button>
+                <div id="aiResult" class="mt-3"></div>
+            </div>
+        </div>
+
+        <!-- Manual Match Interface -->
+        <div class="card mb-4">
+            <div class="card-header bg-success text-white">
+                <h5>Manual Match (Optional)</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">Manually match bank transactions to deposit batches</p>
+                <form id="manualMatchForm">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Bank Transaction *</label>
+                            <select class="form-select" id="bankTxnSelect" required>
+                                <option value="">-- Select Bank Transaction --</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Deposit Batch *</label>
+                            <select class="form-select" id="batchSelect" required>
+                                <option value="">-- Select Deposit Batch --</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-success">✓ Confirm Match</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Unmatched Bank Transactions -->
+        <div class="card mb-4">
+            <div class="card-header bg-warning text-dark">
+                <h5>Unmatched Bank Transactions</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Transaction ID</th>
+                            <th>Date</th>
+                            <th>Description</th>
+                            <th>Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody id="unmatchedTxnsBody">
+                        <tr><td colspan="4" class="text-center">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Unreconciled Batches -->
+        <div class="card mb-4">
+            <div class="card-header bg-danger text-white">
+                <h5>Unreconciled Deposit Batches</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Batch Number</th>
+                            <th>Total</th>
+                            <th>Deposited Date</th>
+                        </tr>
+                    </thead>
+                    <tbody id="unreconciledBatchesBody">
+                        <tr><td colspan="3" class="text-center">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Confirmed Matches -->
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h5>Confirmed Matches</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Bank Transaction</th>
+                            <th>Deposit Batch</th>
+                            <th>AI Suggested</th>
+                            <th>Confidence</th>
+                            <th>Matched At</th>
+                        </tr>
+                    </thead>
+                    <tbody id="matchesTableBody">
+                        <tr><td colspan="5" class="text-center">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8080/api';
+
+        window.onload = function() {
+            loadUnmatchedTransactions();
+            loadUnreconciledBatches();
+            loadMatches();
+        };
+
+        // Load unmatched transactions
+        async function loadUnmatchedTransactions() {
+            try {
+                const response = await fetch(`${API_BASE}/bank-transactions/unmatched`);
+                const txns = await response.json();
+
+                // Populate table
+                const tbody = document.getElementById('unmatchedTxnsBody');
+                tbody.innerHTML = '';
+
+                // Populate dropdown
+                const select = document.getElementById('bankTxnSelect');
+                select.innerHTML = '<option value="">-- Select Bank Transaction --</option>';
+
+                if (txns.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="text-center">No unmatched transactions</td></tr>';
+                    return;
+                }
+
+                txns.forEach(txn => {
+                    tbody.innerHTML += `
+                        <tr>
+                            <td>${txn.transactionId}</td>
+                            <td>${txn.date}</td>
+                            <td>${txn.description}</td>
+                            <td class="text-success">$${txn.amount.toFixed(2)}</td>
+                        </tr>
+                    `;
+                    select.innerHTML += `<option value="${txn.id}">${txn.transactionId} - $${txn.amount.toFixed(2)}</option>`;
+                });
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        // Load unreconciled batches
+        async function loadUnreconciledBatches() {
+            try {
+                const response = await fetch(`${API_BASE}/deposit-batches/unreconciled`);
+                const batches = await response.json();
+
+                // Populate table
+                const tbody = document.getElementById('unreconciledBatchesBody');
+                tbody.innerHTML = '';
+
+                // Populate dropdown
+                const select = document.getElementById('batchSelect');
+                select.innerHTML = '<option value="">-- Select Deposit Batch --</option>';
+
+                if (batches.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="3" class="text-center">No unreconciled batches</td></tr>';
+                    return;
+                }
+
+                batches.forEach(batch => {
+                    tbody.innerHTML += `
+                        <tr>
+                            <td>${batch.batchNumber}</td>
+                            <td>$${batch.total.toFixed(2)}</td>
+                            <td>${batch.depositedDate ? new Date(batch.depositedDate).toLocaleDateString() : '-'}</td>
+                        </tr>
+                    `;
+                    select.innerHTML += `<option value="${batch.id}">${batch.batchNumber} - $${batch.total.toFixed(2)}</option>`;
+                });
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        // AI Reconciliation
+        document.getElementById('runAIBtn').addEventListener('click', async () => {
+            const btn = document.getElementById('runAIBtn');
+            const resultDiv = document.getElementById('aiResult');
+
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Running AI...';
+            resultDiv.innerHTML = '';
+
+            try {
+                const response = await fetch(`${API_BASE}/ai-reconciliation/run`, {
+                    method: 'POST'
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    resultDiv.innerHTML = `
+                        <div class="alert alert-success">
+                            <h5>✅ AI Reconciliation Complete!</h5>
+                            <p class="mb-0">
+                                <strong>${result.matchesCreated}</strong> matches created<br>
+                                <strong>${result.exceptionsCreated}</strong> exceptions detected
+                            </p>
+                        </div>
+                    `;
+
+                    // Reload all data
+                    loadUnmatchedTransactions();
+                    loadUnreconciledBatches();
+                    loadMatches();
+                } else {
+                    const error = await response.text();
+                    resultDiv.innerHTML = `<div class="alert alert-danger">❌ Error: ${error}</div>`;
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                resultDiv.innerHTML = `<div class="alert alert-danger">❌ Error: ${error.message}</div>`;
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-robot"></i> Run AI Reconciliation';
+            }
+        });
+
+        // Manual match
+        document.getElementById('manualMatchForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const bankTxnId = document.getElementById('bankTxnSelect').value;
+            const batchId = document.getElementById('batchSelect').value;
+
+            try {
+                const response = await fetch(`${API_BASE}/reconciliation/confirm-match`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        bankTransactionId: bankTxnId,
+                        depositBatchId: batchId,
+                        aiSuggested: false,
+                        aiConfidence: 0,
+                        aiReasons: ["Manual match by user"]
+                    })
+                });
+
+                if (response.ok) {
+                    alert('✅ Match confirmed successfully!');
+                    loadUnmatchedTransactions();
+                    loadUnreconciledBatches();
+                    loadMatches();
+                } else {
+                    const error = await response.text();
+                    alert('❌ Error: ' + error);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('❌ Error: ' + error.message);
+            }
+        });
+
+        // Load matches
+        async function loadMatches() {
+            try {
+                // Fetch matches, transactions, and batches in parallel
+                const [matchesRes, transactionsRes, batchesRes] = await Promise.all([
+                    fetch(`${API_BASE}/reconciliation/matches`),
+                    fetch(`${API_BASE}/bank-transactions`),
+                    fetch(`${API_BASE}/deposit-batches`)
+                ]);
+
+                const matches = await matchesRes.json();
+                const transactions = await transactionsRes.json();
+                const batches = await batchesRes.json();
+
+                // Create lookup maps for quick access
+                const txnMap = {};
+                transactions.forEach(t => txnMap[t.id] = t);
+
+                const batchMap = {};
+                batches.forEach(b => batchMap[b.id] = b);
+
+                const tbody = document.getElementById('matchesTableBody');
+                tbody.innerHTML = '';
+
+                if (matches.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="text-center">No matches yet</td></tr>';
+                    return;
+                }
+
+                matches.forEach(match => {
+                    const txn = txnMap[match.bankTransactionId];
+                    const batch = batchMap[match.depositBatchId];
+
+                    tbody.innerHTML += `
+                        <tr>
+                            <td>${txn ? txn.transactionId : match.bankTransactionId}</td>
+                            <td>${batch ? batch.batchNumber : match.depositBatchId}</td>
+                            <td><span class="badge bg-${match.aiSuggested ? 'success' : 'secondary'}">${match.aiSuggested ? 'Yes' : 'Manual'}</span></td>
+                            <td>${match.aiConfidence}%</td>
+                            <td>${match.matchedAt ? new Date(match.matchedAt).toLocaleString() : '-'}</td>
+                        </tr>
+                    `;
+                });
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+    </script>
+</body>
+</html>
+

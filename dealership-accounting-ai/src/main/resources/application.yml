@@ -1,0 +1,62 @@
+spring:
+  application:
+    name: dealership-accounting-ai
+  
+  data:
+    mongodb:
+      host: localhost
+      port: 27017
+      database: dealership_db
+      auto-index-creation: true
+  
+  web:
+    resources:
+      static-locations: classpath:/static/
+
+server:
+  port: 8080
+  error:
+    include-message: always
+    include-binding-errors: always
+
+# AI Configuration
+ai:
+  strategy: rule-based  # Options: rule-based, ml-based (future)
+  confidence-threshold: 70  # Minimum confidence to suggest match
+  
+  ollama:
+    url: http://localhost:11434
+    model: llama3.2:latest
+    timeout: 30000  # 30 seconds
+
+# Application Configuration
+app:
+  dealership:
+    demo-id: DEALER-001  # Hardcoded tenant for demo
+    demo-name: ABC Toyota Dealership
+  
+  tax-rate: 0.08  # 8% tax rate (hardcoded for demo)
+  
+  merchant-fee:
+    min-percentage: 1.5  # Minimum merchant fee % to detect
+    max-percentage: 3.5  # Maximum merchant fee % to detect
+
+# Actuator Configuration
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+
+# Logging Configuration
+logging:
+  level:
+    com.tekion.accounting: DEBUG
+    org.springframework.data.mongodb: INFO
+    org.springframework.web: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+

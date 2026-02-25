@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deposit Batching - Dealership Accounting AI</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="index.html">🚗 Dealership Accounting AI</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item"><a class="nav-link" href="index.html">Dashboard</a></li>
+                    <li class="nav-item"><a class="nav-link" href="repair-orders.html">Repair Orders</a></li>
+                    <li class="nav-item"><a class="nav-link" href="receipts.html">Receipts</a></li>
+                    <li class="nav-item"><a class="nav-link active" href="batching.html">Batching</a></li>
+                    <li class="nav-item"><a class="nav-link" href="bank.html">Bank Feed</a></li>
+                    <li class="nav-item"><a class="nav-link" href="reconcile.html">Reconcile</a></li>
+                    <li class="nav-item"><a class="nav-link" href="exceptions.html">Exceptions</a></li>
+                    <li class="nav-item"><a class="nav-link" href="analytics.html">📈 Analytics</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container mt-4">
+        <h1>📦 Deposit Batching</h1>
+
+        <!-- Create Batch -->
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5>Create Deposit Batch</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">Select unbatched receipts to create a deposit batch</p>
+                <form id="createBatchForm">
+                    <div id="receiptCheckboxes" class="mb-3">
+                        <p>Loading unbatched receipts...</p>
+                    </div>
+                    <div class="mb-3">
+                        <strong>Total Selected: $<span id="selectedTotal">0.00</span></strong>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Create Batch</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- All Batches -->
+        <div class="card">
+            <div class="card-header bg-secondary text-white">
+                <h5>All Deposit Batches</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Batch Number</th>
+                            <th>Total</th>
+                            <th>Receipts</th>
+                            <th>Status</th>
+                            <th>Reconciled</th>
+                            <th>Deposited Date</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="batchesTableBody">
+                        <tr><td colspan="7" class="text-center">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8080/api';
+        let selectedReceipts = [];
+
+        window.onload = function() {
+            loadUnbatchedReceipts();
+            loadAllBatches();
+        };
+
+        // Load unbatched receipts
+        async function loadUnbatchedReceipts() {
+            try {
+                const response = await fetch(`${API_BASE}/receipts/unbatched`);
+                const receipts = await response.json();
+
+                const container = document.getElementById('receiptCheckboxes');
+                container.innerHTML = '';
+
+                if (receipts.length === 0) {
+                    container.innerHTML = '<p class="text-muted">No unbatched receipts available</p>';
+                    return;
+                }
+
+                receipts.forEach(receipt => {
+                    const checkbox = `
+                        <div class="form-check">
+                            <input class="form-check-input receipt-checkbox" type="checkbox" 
+                                   value="${receipt.id}" data-amount="${receipt.amount}" 
+                                   id="receipt-${receipt.id}">
+                            <label class="form-check-label" for="receipt-${receipt.id}">
+                                ${receipt.receiptNumber} - ${receipt.roNumber} - $${receipt.amount.toFixed(2)}
+                            </label>
+                        </div>
+                    `;
+                    container.innerHTML += checkbox;
+                });
+
+                // Add event listeners
+                document.querySelectorAll('.receipt-checkbox').forEach(cb => {
+                    cb.addEventListener('change', updateSelectedTotal);
+                });
+            } catch (error) {
+                console.error('Error loading unbatched receipts:', error);
+            }
+        }
+
+        // Update selected total
+        function updateSelectedTotal() {
+            const checkboxes = document.querySelectorAll('.receipt-checkbox:checked');
+            let total = 0;
+            selectedReceipts = [];
+
+            checkboxes.forEach(cb => {
+                total += parseFloat(cb.dataset.amount);
+                selectedReceipts.push(cb.value);
+            });
+
+            document.getElementById('selectedTotal').textContent = total.toFixed(2);
+        }
+
+        // Create batch
+        document.getElementById('createBatchForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            if (selectedReceipts.length === 0) {
+                alert('Please select at least one receipt');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/deposit-batches`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ receiptIds: selectedReceipts })
+                });
+
+                if (response.ok) {
+                    alert('✅ Deposit batch created successfully!');
+                    loadUnbatchedReceipts();
+                    loadAllBatches();
+                    selectedReceipts = [];
+                } else {
+                    const error = await response.text();
+                    alert('❌ Error: ' + error);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('❌ Error: ' + error.message);
+            }
+        });
+
+        // Load all batches
+        async function loadAllBatches() {
+            try {
+                const response = await fetch(`${API_BASE}/deposit-batches`);
+                const batches = await response.json();
+
+                const tbody = document.getElementById('batchesTableBody');
+                tbody.innerHTML = '';
+
+                if (batches.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" class="text-center">No batches yet</td></tr>';
+                    return;
+                }
+
+                batches.forEach(batch => {
+                    const row = `
+                        <tr>
+                            <td><strong>${batch.batchNumber}</strong></td>
+                            <td>$${batch.total.toFixed(2)}</td>
+                            <td>${batch.receiptIds.length} receipts</td>
+                            <td><span class="badge bg-${batch.status === 'OPEN' ? 'warning' : 'success'}">${batch.status}</span></td>
+                            <td><span class="badge bg-${batch.reconciled ? 'success' : 'danger'}">${batch.reconciled ? 'Yes' : 'No'}</span></td>
+                            <td>${batch.depositedDate ? new Date(batch.depositedDate).toLocaleDateString() : '-'}</td>
+                            <td>
+                                ${batch.status === 'OPEN' ? 
+                                    `<button class="btn btn-sm btn-success" onclick="markAsDeposited('${batch.id}')">Mark Deposited</button>` : 
+                                    `<span class="text-success">✓ Deposited</span>`
+                                }
+                            </td>
+                        </tr>
+                    `;
+                    tbody.innerHTML += row;
+                });
+            } catch (error) {
+                console.error('Error loading batches:', error);
+            }
+        }
+
+        // Mark batch as deposited
+        async function markAsDeposited(batchId) {
+            if (!confirm('Mark this batch as deposited?')) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/deposit-batches/${batchId}/mark-deposited`, {
+                    method: 'PUT'
+                });
+
+                if (response.ok) {
+                    alert('✅ Batch marked as deposited!');
+                    loadAllBatches();
+                } else {
+                    alert('❌ Error marking batch as deposited');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+    </script>
+</body>
+</html>
+

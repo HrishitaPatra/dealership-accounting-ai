@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bank Transactions - Dealership Accounting AI</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="index.html">🚗 Dealership Accounting AI</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item"><a class="nav-link" href="index.html">Dashboard</a></li>
+                    <li class="nav-item"><a class="nav-link" href="repair-orders.html">Repair Orders</a></li>
+                    <li class="nav-item"><a class="nav-link" href="receipts.html">Receipts</a></li>
+                    <li class="nav-item"><a class="nav-link" href="batching.html">Batching</a></li>
+                    <li class="nav-item"><a class="nav-link active" href="bank.html">Bank Feed</a></li>
+                    <li class="nav-item"><a class="nav-link" href="reconcile.html">Reconcile</a></li>
+                    <li class="nav-item"><a class="nav-link" href="exceptions.html">Exceptions</a></li>
+                    <li class="nav-item"><a class="nav-link" href="analytics.html">📈 Analytics</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container mt-4">
+        <h1>🏦 Bank Transactions</h1>
+
+        <!-- Seed Demo Data -->
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5>Import Bank Feed</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">Seed demo bank transactions for testing</p>
+                <button class="btn btn-success" onclick="seedBankFeed()">🌱 Seed Demo Bank Feed</button>
+                <p class="mt-2 text-muted small">This will create 3 demo transactions:
+                    <br>• $485.50 credit (merchant fee deducted)
+                    <br>• $250.00 credit (exact match)
+                    <br>• -$25.00 debit (bank fee)
+                </p>
+            </div>
+        </div>
+
+        <!-- Unmatched Transactions -->
+        <div class="card mb-4">
+            <div class="card-header bg-warning text-dark">
+                <h5>Unmatched Bank Transactions</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Transaction ID</th>
+                            <th>Date</th>
+                            <th>Description</th>
+                            <th>Amount</th>
+                            <th>Type</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="unmatchedTableBody">
+                        <tr><td colspan="6" class="text-center">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- All Transactions -->
+        <div class="card">
+            <div class="card-header bg-secondary text-white">
+                <h5>All Bank Transactions</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Transaction ID</th>
+                            <th>Date</th>
+                            <th>Description</th>
+                            <th>Amount</th>
+                            <th>Type</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="allTransactionsTableBody">
+                        <tr><td colspan="6" class="text-center">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8080/api';
+
+        window.onload = function() {
+            loadUnmatchedTransactions();
+            loadAllTransactions();
+        };
+
+        // Seed bank feed
+        async function seedBankFeed() {
+            if (!confirm('Seed demo bank transactions?')) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/bank-transactions/seed`, {
+                    method: 'POST'
+                });
+
+                if (response.ok) {
+                    alert('✅ Demo bank feed seeded successfully!');
+                    loadUnmatchedTransactions();
+                    loadAllTransactions();
+                } else {
+                    alert('❌ Error seeding bank feed');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('❌ Error: ' + error.message);
+            }
+        }
+
+        // Load unmatched transactions
+        async function loadUnmatchedTransactions() {
+            try {
+                const response = await fetch(`${API_BASE}/bank-transactions/unmatched`);
+                const transactions = await response.json();
+
+                const tbody = document.getElementById('unmatchedTableBody');
+                tbody.innerHTML = '';
+
+                if (transactions.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" class="text-center">No unmatched transactions</td></tr>';
+                    return;
+                }
+
+                transactions.forEach(txn => {
+                    const row = `
+                        <tr>
+                            <td><strong>${txn.transactionId}</strong></td>
+                            <td>${txn.date}</td>
+                            <td>${txn.description}</td>
+                            <td class="${txn.amount >= 0 ? 'text-success' : 'text-danger'}">$${txn.amount.toFixed(2)}</td>
+                            <td><span class="badge bg-${txn.type === 'CREDIT' ? 'success' : 'danger'}">${txn.type}</span></td>
+                            <td><span class="badge bg-warning">${txn.status}</span></td>
+                        </tr>
+                    `;
+                    tbody.innerHTML += row;
+                });
+            } catch (error) {
+                console.error('Error loading unmatched transactions:', error);
+            }
+        }
+
+        // Load all transactions
+        async function loadAllTransactions() {
+            try {
+                const response = await fetch(`${API_BASE}/bank-transactions`);
+                const transactions = await response.json();
+
+                const tbody = document.getElementById('allTransactionsTableBody');
+                tbody.innerHTML = '';
+
+                if (transactions.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" class="text-center">No transactions yet</td></tr>';
+                    return;
+                }
+
+                transactions.forEach(txn => {
+                    const row = `
+                        <tr>
+                            <td><strong>${txn.transactionId}</strong></td>
+                            <td>${txn.date}</td>
+                            <td>${txn.description}</td>
+                            <td class="${txn.amount >= 0 ? 'text-success' : 'text-danger'}">$${txn.amount.toFixed(2)}</td>
+                            <td><span class="badge bg-${txn.type === 'CREDIT' ? 'success' : 'danger'}">${txn.type}</span></td>
+                            <td><span class="badge bg-${txn.status === 'UNMATCHED' ? 'warning' : 'success'}">${txn.status}</span></td>
+                        </tr>
+                    `;
+                    tbody.innerHTML += row;
+                });
+            } catch (error) {
+                console.error('Error loading all transactions:', error);
+            }
+        }
+    </script>
+</body>
+</html>
+

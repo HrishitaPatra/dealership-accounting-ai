@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exceptions Queue - Dealership Accounting AI</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="index.html">🚗 Dealership Accounting AI</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item"><a class="nav-link" href="index.html">Dashboard</a></li>
+                    <li class="nav-item"><a class="nav-link" href="repair-orders.html">Repair Orders</a></li>
+                    <li class="nav-item"><a class="nav-link" href="receipts.html">Receipts</a></li>
+                    <li class="nav-item"><a class="nav-link" href="batching.html">Batching</a></li>
+                    <li class="nav-item"><a class="nav-link" href="bank.html">Bank Feed</a></li>
+                    <li class="nav-item"><a class="nav-link" href="reconcile.html">Reconcile</a></li>
+                    <li class="nav-item"><a class="nav-link active" href="exceptions.html">Exceptions</a></li>
+                    <li class="nav-item"><a class="nav-link" href="analytics.html">📈 Analytics</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container mt-4">
+        <h1>⚠️ Exceptions Queue</h1>
+        <p class="text-muted">AI-detected accounting exceptions requiring resolution</p>
+
+        <!-- Open Exceptions -->
+        <div class="card mb-4">
+            <div class="card-header bg-warning text-dark">
+                <h5>Open Exceptions</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Exception #</th>
+                            <th>Type</th>
+                            <th>Amount</th>
+                            <th>AI Suggested GL</th>
+                            <th>AI Memo</th>
+                            <th>Created</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="openExceptionsBody">
+                        <tr><td colspan="7" class="text-center">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Resolved Exceptions -->
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h5>Resolved Exceptions</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Exception #</th>
+                            <th>Type</th>
+                            <th>Amount</th>
+                            <th>GL Account</th>
+                            <th>Resolved By</th>
+                            <th>Resolved At</th>
+                        </tr>
+                    </thead>
+                    <tbody id="resolvedExceptionsBody">
+                        <tr><td colspan="6" class="text-center">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Exception Detail Modal -->
+    <div class="modal fade" id="exceptionModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-warning">
+                    <h5 class="modal-title">Exception Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="exceptionDetails">
+                        <!-- Populated by JavaScript -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-success" onclick="resolveException()">Resolve Exception</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const API_BASE = 'http://localhost:8080/api';
+        let currentExceptionId = null;
+
+        window.onload = function() {
+            loadOpenExceptions();
+            loadResolvedExceptions();
+        };
+
+        // Load open exceptions
+        async function loadOpenExceptions() {
+            try {
+                const response = await fetch(`${API_BASE}/exceptions/open`);
+                const exceptions = await response.json();
+
+                const tbody = document.getElementById('openExceptionsBody');
+                tbody.innerHTML = '';
+
+                if (exceptions.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" class="text-center text-success">✓ No open exceptions!</td></tr>';
+                    return;
+                }
+
+                exceptions.forEach(exc => {
+                    const row = `
+                        <tr>
+                            <td><strong>${exc.exceptionNumber}</strong></td>
+                            <td><span class="badge bg-${getTypeBadge(exc.type)}">${exc.type}</span></td>
+                            <td class="${exc.amount >= 0 ? 'text-success' : 'text-danger'}">$${exc.amount.toFixed(2)}</td>
+                            <td>${exc.aiSuggestedGLAccount || '-'} ${exc.aiSuggestedGLName ? '(' + exc.aiSuggestedGLName + ')' : ''}</td>
+                            <td>${exc.aiGeneratedMemo ? exc.aiGeneratedMemo.substring(0, 50) + '...' : '-'}</td>
+                            <td>${new Date(exc.createdAt).toLocaleDateString()}</td>
+                            <td>
+                                <button class="btn btn-sm btn-info" onclick="viewException('${exc.id}')">View</button>
+                            </td>
+                        </tr>
+                    `;
+                    tbody.innerHTML += row;
+                });
+            } catch (error) {
+                console.error('Error loading open exceptions:', error);
+                document.getElementById('openExceptionsBody').innerHTML = 
+                    '<tr><td colspan="7" class="text-center text-muted">No exceptions endpoint yet (will be added tomorrow)</td></tr>';
+            }
+        }
+
+        // Load resolved exceptions
+        async function loadResolvedExceptions() {
+            try {
+                const response = await fetch(`${API_BASE}/exceptions/resolved`);
+                const exceptions = await response.json();
+
+                const tbody = document.getElementById('resolvedExceptionsBody');
+                tbody.innerHTML = '';
+
+                if (exceptions.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" class="text-center">No resolved exceptions yet</td></tr>';
+                    return;
+                }
+
+                exceptions.forEach(exc => {
+                    const row = `
+                        <tr>
+                            <td>${exc.exceptionNumber}</td>
+                            <td><span class="badge bg-secondary">${exc.type}</span></td>
+                            <td>$${exc.amount.toFixed(2)}</td>
+                            <td>${exc.resolvedGLAccount || '-'}</td>
+                            <td>${exc.resolvedBy || '-'}</td>
+                            <td>${exc.resolvedAt ? new Date(exc.resolvedAt).toLocaleString() : '-'}</td>
+                        </tr>
+                    `;
+                    tbody.innerHTML += row;
+                });
+            } catch (error) {
+                console.error('Error loading resolved exceptions:', error);
+                document.getElementById('resolvedExceptionsBody').innerHTML = 
+                    '<tr><td colspan="6" class="text-center text-muted">No exceptions endpoint yet (will be added tomorrow)</td></tr>';
+            }
+        }
+
+        // View exception details
+        async function viewException(exceptionId) {
+            currentExceptionId = exceptionId;
+
+            try {
+                const response = await fetch(`${API_BASE}/exceptions/${exceptionId}`);
+                const exc = await response.json();
+
+                const details = `
+                    <div class="mb-3">
+                        <strong>Exception Number:</strong> ${exc.exceptionNumber}
+                    </div>
+                    <div class="mb-3">
+                        <strong>Type:</strong> <span class="badge bg-${getTypeBadge(exc.type)}">${exc.type}</span>
+                    </div>
+                    <div class="mb-3">
+                        <strong>Amount:</strong> <span class="${exc.amount >= 0 ? 'text-success' : 'text-danger'}">$${exc.amount.toFixed(2)}</span>
+                    </div>
+                    <div class="mb-3">
+                        <strong>AI Suggested GL Account:</strong> ${exc.aiSuggestedGLAccount || '-'} ${exc.aiSuggestedGLName ? '(' + exc.aiSuggestedGLName + ')' : ''}
+                    </div>
+                    <div class="mb-3">
+                        <strong>AI Generated Memo:</strong>
+                        <div class="alert alert-info mt-2">${exc.aiGeneratedMemo || 'No memo generated'}</div>
+                    </div>
+                    <div class="mb-3">
+                        <strong>Bank Transaction ID:</strong> ${exc.bankTransactionId || '-'}
+                    </div>
+                    <div class="mb-3">
+                        <strong>Deposit Batch ID:</strong> ${exc.depositBatchId || '-'}
+                    </div>
+                `;
+
+                document.getElementById('exceptionDetails').innerHTML = details;
+
+                const modal = new bootstrap.Modal(document.getElementById('exceptionModal'));
+                modal.show();
+            } catch (error) {
+                console.error('Error loading exception details:', error);
+                alert('Error loading exception details');
+            }
+        }
+
+        // Resolve exception
+        async function resolveException() {
+            if (!currentExceptionId) return;
+
+            if (!confirm('Mark this exception as resolved?')) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/exceptions/${currentExceptionId}/resolve`, {
+                    method: 'PUT'
+                });
+
+                if (response.ok) {
+                    alert('✅ Exception resolved!');
+                    bootstrap.Modal.getInstance(document.getElementById('exceptionModal')).hide();
+                    loadOpenExceptions();
+                    loadResolvedExceptions();
+                } else {
+                    alert('❌ Error resolving exception');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('❌ Error: ' + error.message);
+            }
+        }
+
+        // Get badge color for exception type
+        function getTypeBadge(type) {
+            switch(type) {
+                case 'MERCHANT_FEE': return 'info';
+                case 'TIMING_DIFFERENCE': return 'warning';
+                case 'UNMATCHED': return 'danger';
+                default: return 'secondary';
+            }
+        }
+    </script>
+</body>
+</html>
+
