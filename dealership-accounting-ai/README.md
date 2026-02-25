@@ -200,7 +200,3 @@ mvn test jacoco:report
 
 
 
-## 📄 License
-
-Internal Tekion Demo Project
-
