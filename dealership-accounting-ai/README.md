@@ -198,11 +198,7 @@ mvn test jacoco:report
 
 ---
 
-## 👨‍💻 Author
 
-Built by Tekion Intern - Demonstrating AI-powered accounting automation
-
----
 
 ## 📄 License
 
